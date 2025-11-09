@@ -1,0 +1,145 @@
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ESP_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = game.CoreGui
+
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 150, 0, 40)
+toggleBtn.Position = UDim2.new(0.05,0,0.05,0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
+toggleBtn.Text = "ESP: ❎️ ปิด"
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 20
+toggleBtn.Parent = screenGui
+toggleBtn.Active = true
+toggleBtn.Draggable = true
+
+
+local colorBtn = Instance.new("TextButton")
+colorBtn.Size = UDim2.new(0, 150, 0, 40)
+colorBtn.Position = UDim2.new(0.05,0,0.12,0)
+colorBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+colorBtn.TextColor3 = Color3.fromRGB(255,255,255)
+colorBtn.Text = "Color: Auto"
+colorBtn.Font = Enum.Font.SourceSansBold
+colorBtn.TextSize = 20
+colorBtn.Parent = screenGui
+colorBtn.Active = true
+colorBtn.Draggable = true
+
+
+local espEnabled = false
+local colorModes = {"Auto","Green","Red"}
+local colorIndex = 1 -- เริ่มที่ Auto
+
+
+local function createOrUpdateHighlight(player)
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+    local char = player.Character
+    local esp = char:FindFirstChild("ESP_Highlight")
+    if not esp then
+        esp = Instance.new("Highlight")
+        esp.Name = "ESP_Highlight"
+        esp.Parent = char
+        esp.FillTransparency = 0.4
+        esp.OutlineTransparency = 0
+        esp.Adornee = char
+        esp.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    end
+
+  
+    local mode = colorModes[colorIndex]
+    if mode == "Green" then
+        esp.FillColor = Color3.fromRGB(0,255,0)
+        esp.OutlineColor = Color3.fromRGB(100,255,100)
+    elseif mode == "Red" then
+        esp.FillColor = Color3.fromRGB(255,0,0)
+        esp.OutlineColor = Color3.fromRGB(255,100,100)
+    else
+      
+        local origin = camera.CFrame.Position
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local direction = (hrp.Position - origin)
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+        rayParams.FilterDescendantsInstances = {localPlayer.Character, char}
+        local rayResult = Workspace:Raycast(origin,direction,rayParams)
+
+        if rayResult and rayResult.Instance and not char:IsAncestorOf(rayResult.Instance) then
+            esp.FillColor = Color3.fromRGB(255,0,0)
+            esp.OutlineColor = Color3.fromRGB(255,100,100)
+        else
+            esp.FillColor = Color3.fromRGB(0,255,0)
+            esp.OutlineColor = Color3.fromRGB(100,255,100)
+        end
+    end
+end
+
+
+local function removeAllHighlights()
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl.Character then
+            local esp = pl.Character:FindFirstChild("ESP_Highlight")
+            if esp then esp:Destroy() end
+        end
+    end
+end
+
+
+spawn(function()
+    while true do
+        task.wait(0.2)
+        if espEnabled then
+            for _, pl in ipairs(Players:GetPlayers()) do
+                if pl ~= localPlayer then
+                    pcall(function() createOrUpdateHighlight(pl) end)
+                end
+            end
+        end
+    end
+end)
+
+
+toggleBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        toggleBtn.Text = "ESP: ✅️ เปิด"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+    else
+        toggleBtn.Text = "ESP: ❎️ ปิด"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+        removeAllHighlights()
+    end
+end)
+
+-- ปุ่มเปลี่ยนโหมดสี
+colorBtn.MouseButton1Click:Connect(function()
+    colorIndex = colorIndex % #colorModes + 1
+    colorBtn.Text = "Color: "..colorModes[colorIndex]
+end)
+
+
+Players.PlayerRemoving:Connect(function(pl)
+    if pl.Character then
+        local esp = pl.Character:FindFirstChild("ESP_Highlight")
+        if esp then esp:Destroy() end
+    end
+end)
+
+
+Players.PlayerAdded:Connect(function(pl)
+    if espEnabled and pl ~= localPlayer then
+        task.wait(0.2)
+        pcall(function() createOrUpdateHighlight(pl) end)
+    end
+end)
